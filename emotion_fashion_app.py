@@ -1,5 +1,6 @@
 import streamlit as st
 import re
+import random
 
 # ------------------- 감정 키워드 사전 -------------------
 EMOTION_KEYWORDS = {
@@ -24,17 +25,15 @@ EMOTION_KEYWORDS = {
 EMOTIONS = list(EMOTION_KEYWORDS.keys())
 
 # ------------------- 감정 분석 함수 -------------------
-
-import unicodedata
-
 def rule_based_emotion(text):
-    text = unicodedata.normalize("NFKC", str(text).lower())  # ← 여기!
+    text = str(text).lower()
     tokens = re.findall(r'\b\w+\b', text)
     found = []
     for emotion, keywords in EMOTION_KEYWORDS.items():
         for kw in keywords:
             if kw in tokens:
                 found.append(emotion)
+    # 여러 감정 키워드 동시 발견 시 우선순위: anger > sad > joy > surprise > neutral
     for emo in ['anger', 'sad', 'joy', 'surprise']:
         if emo in found:
             return emo
@@ -54,7 +53,7 @@ if "reviews" not in st.session_state:
 if "user_blacklist" not in st.session_state:
     st.session_state.user_blacklist = {}  # {username: [asin1, asin2, ...]}
 
-# ------------------- UI -------------------
+# ------------------- UI: 상품 나열 -------------------
 st.title("🛒 Mini Emotion-Aware Shopping Mall Demo")
 st.header("Products")
 
@@ -64,6 +63,7 @@ for idx, prod in enumerate(PRODUCTS):
     if st.button(f"View Details {prod['name']}", key=f"btn_{prod['asin']}"):
         st.session_state["selected_product"] = prod["asin"]
 
+# ------------------- UI: 상품 상세/리뷰 -------------------
 if "selected_product" in st.session_state:
     asin = st.session_state["selected_product"]
     prod = next(p for p in PRODUCTS if p["asin"] == asin)
@@ -73,11 +73,11 @@ if "selected_product" in st.session_state:
 
     # 리뷰 남기기
     st.markdown("**Your Name**")
-    username = st.text_input("User Name", value="김민지")
+    username = st.text_input("User Name", value="김민지", key="review_name")
     st.markdown("**Leave a Review**")
-    review_text = st.text_area("Type your review here", value="")
+    review_text = st.text_area("Type your review here", value="", key="review_text")
 
-    if st.button("Submit Review"):
+    if st.button("Submit Review", key=f"submit_{asin}"):
         emotion = rule_based_emotion(review_text)
         st.session_state.reviews.append({
             "user": username, "asin": asin, "review": review_text, "emotion": emotion
@@ -97,41 +97,42 @@ if "selected_product" in st.session_state:
     else:
         st.write("No reviews yet.")
 
-# ------------------- 맞춤형 추천 -------------------
+# ------------------- 맞춤형 추천 + 필터버블 완화 기능 -------------------
 st.markdown("---")
 st.header("🔎 Personalized Recommendations")
-username = st.text_input("Enter your name for recommendations", value="김민지", key="recommend_name")
+username_for_rec = st.text_input("Enter your name for recommendations", value="김민지", key="recommend_name")
 
-if st.button("Show My Recommendations"):
+# Diversity 슬라이더 추가 (필터버블 완화)
+diversity = st.slider(
+    "Diversity Ratio (필터버블 완화)", 0.0, 1.0, 0.2, 0.05, key="diversity_slider"
+)
+
+if st.button("Show My Recommendations", key="recommend_btn"):
     # 사용자가 부정 감정(anger/sad) 남긴 상품 제외
-    blacklist = st.session_state.user_blacklist.get(username, [])
+    blacklist = st.session_state.user_blacklist.get(username_for_rec, [])
+    # 메인 추천: joy/surprise 감정만 남은 상품
     recs = [p for p in PRODUCTS if p["asin"] not in blacklist]
-    st.subheader(f"Recommended Products for {username}")
+    # 필터버블 완화: 일부 랜덤 상품 포함
+    if diversity > 0 and len(blacklist) < len(PRODUCTS):
+        possible_diverse = [p for p in PRODUCTS if p["asin"] in blacklist]
+        num_diverse = max(1, int(diversity * len(PRODUCTS)))
+        random.shuffle(possible_diverse)
+        diverse_recs = possible_diverse[:num_diverse]
+        recs += diverse_recs
+        # 중복 제거
+        seen = set()
+        recs_final = []
+        for p in recs:
+            if p["asin"] not in seen:
+                recs_final.append(p)
+                seen.add(p["asin"])
+        recs = recs_final
+
+    st.subheader(f"Recommended Products for {username_for_rec}")
     for prod in recs:
         st.write(f"- {prod['name']}: {prod['desc']}")
     if not recs:
         st.info("모든 상품이 블랙리스트 처리되어 추천이 없습니다.")
-diversity = st.slider("Diversity Ratio (필터버블 완화)", 0.0, 1.0, 0.2, 0.05)
 
-if st.button("Show My Recommendations"):
-    blacklist = st.session_state.user_blacklist.get(username, [])
-    n_total = 5
-    n_main = int(n_total * (1 - diversity))
-    n_diverse = n_total - n_main
+# ------------------- (확장) 감정/키워드 기반 추천도 원하면 추가 가능 -------------------
 
-    # 감정 기반 추천
-    recs_main = [p for p in PRODUCTS if p["asin"] not in blacklist][:n_main]
-
-    # 남은 상품 중 랜덤 추천
-    rest = [p for p in PRODUCTS if p["asin"] not in blacklist and p not in recs_main]
-    import random
-    random.shuffle(rest)
-    recs_diverse = rest[:n_diverse]
-
-    recs = recs_main + recs_diverse
-    st.subheader(f"Recommended Products for {username}")
-    for prod in recs:
-        st.write(f"- {prod['name']}: {prod['desc']}")
-
-
-# (추가 확장: 감정/키워드별 추천, diversity 등 원하면 안내!)
