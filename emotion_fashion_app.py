@@ -24,15 +24,17 @@ EMOTION_KEYWORDS = {
 EMOTIONS = list(EMOTION_KEYWORDS.keys())
 
 # ------------------- 감정 분석 함수 -------------------
+
+import unicodedata
+
 def rule_based_emotion(text):
-    text = str(text).lower()
+    text = unicodedata.normalize("NFKC", str(text).lower())  # ← 여기!
     tokens = re.findall(r'\b\w+\b', text)
     found = []
     for emotion, keywords in EMOTION_KEYWORDS.items():
         for kw in keywords:
             if kw in tokens:
                 found.append(emotion)
-    # 여러 감정 키워드 동시 발견 시 우선순위: anger > sad > joy > surprise > neutral
     for emo in ['anger', 'sad', 'joy', 'surprise']:
         if emo in found:
             return emo
