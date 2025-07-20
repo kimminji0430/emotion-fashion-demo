@@ -111,5 +111,27 @@ if st.button("Show My Recommendations"):
         st.write(f"- {prod['name']}: {prod['desc']}")
     if not recs:
         st.info("모든 상품이 블랙리스트 처리되어 추천이 없습니다.")
+diversity = st.slider("Diversity Ratio (필터버블 완화)", 0.0, 1.0, 0.2, 0.05)
+
+if st.button("Show My Recommendations"):
+    blacklist = st.session_state.user_blacklist.get(username, [])
+    n_total = 5
+    n_main = int(n_total * (1 - diversity))
+    n_diverse = n_total - n_main
+
+    # 감정 기반 추천
+    recs_main = [p for p in PRODUCTS if p["asin"] not in blacklist][:n_main]
+
+    # 남은 상품 중 랜덤 추천
+    rest = [p for p in PRODUCTS if p["asin"] not in blacklist and p not in recs_main]
+    import random
+    random.shuffle(rest)
+    recs_diverse = rest[:n_diverse]
+
+    recs = recs_main + recs_diverse
+    st.subheader(f"Recommended Products for {username}")
+    for prod in recs:
+        st.write(f"- {prod['name']}: {prod['desc']}")
+
 
 # (추가 확장: 감정/키워드별 추천, diversity 등 원하면 안내!)
