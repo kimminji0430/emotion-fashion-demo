@@ -16,13 +16,17 @@ if 'user_reviews' not in st.session_state:
     st.session_state.user_reviews = []
 
 # Rule-based 감정 태깅
+import re
+
 def rule_based_emotion(text):
-    text = text.lower()
-    if "good" in text or "love" in text or "happy" in text:
-        return "joy"
-    if "bad" in text or "angry" in text or "hate" in text:
-        return "anger"
+    text = str(text).lower()
+    tokens = re.findall(r'\b\w+\b', text)  # 띄어쓰기, 구두점 분리
+    for emotion, keywords in EMOTION_KEYWORDS.items():
+        for kw in keywords:
+            if kw in tokens:
+                return emotion
     return "neutral"
+
 
 # 1. 상품 목록
 st.title("Mini Emotion-Aware Shopping Mall Demo")
@@ -47,6 +51,7 @@ if 'current_product' in st.session_state:
         emotion = rule_based_emotion(review_text)
         st.session_state.user_reviews.append({'asin':asin, 'user':user, 'text':review_text, 'emotion':emotion})
         st.success(f"Review added! (Detected emotion: {emotion})")
+    
 
 # 3. 추천(감정 기반)
 st.header("Your Recommendations")
