@@ -6,7 +6,7 @@ import json
 @st.cache_data
 def load_data():
     df = pd.read_csv('reviews_with_tfidf_emotion_sample.csv')
-    with open('product_profiles_sample.json', encoding='utf-8') as f:
+    with open('product_profiles.json', encoding='utf-8') as f:
         product_profiles = json.load(f)
     return df, product_profiles
 
